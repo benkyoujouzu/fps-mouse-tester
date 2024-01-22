@@ -29,7 +29,9 @@ export default class ViewGL{
         this.wall.position.z = this.wallZPos;
         this.scene.add(this.wall);
 
-        this.updateBdotSize(3.0);
+        this.createDotResource();
+
+        this.updateBdotSize(4.0);
 
         const crosshairGeometry = new THREE.CircleGeometry(0.1, 64);
         const crosshairMaterial = new THREE.MeshBasicMaterial({color: 0x00aa00});
@@ -76,6 +78,23 @@ export default class ViewGL{
         this.update();
     }
 
+    createDotResource = () => {
+        const targetMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const targetGeometry = new THREE.CircleGeometry(3.0, 32);
+        const traceMaterial = new THREE.MeshBasicMaterial({ color: 0xff9999 });
+        const traceGeometry = new THREE.CircleGeometry(this.dotSize, 32);
+        const hitTraceMaterial = new THREE.MeshBasicMaterial({ color: 0x00aa00 });
+        const missTraceMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.dotResource = {
+            targetMaterial,
+            targetGeometry,
+            traceMaterial,
+            traceGeometry,
+            hitTraceMaterial,
+            missTraceMaterial,
+        };
+    }
+
     updateSens = (sens) => {
         this.controls.pointerSpeed = 0.192 * sens;
     }
@@ -92,12 +111,11 @@ export default class ViewGL{
         if(this.bdot != null) {
             this.scene.remove(this.bdot);
         }
-        const bdotGeometry = new THREE.CircleGeometry(bsize, 32);
-        const bdotMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-        this.bdot = new THREE.Mesh(bdotGeometry, bdotMaterial);
+        this.dotResource.targetGeometry.dispose();
+        this.dotResource.targetGeometry = new THREE.CircleGeometry(bsize, 32);
+        this.bdot = new THREE.Mesh(this.dotResource.targetGeometry, this.dotResource.targetMaterial);
         this.bdot.position.set(0, 0, this.wallZPos + 1.0);
         this.scene.add(this.bdot);
-
     }
 
     updateDotNum = (dotNum) => {
@@ -107,35 +125,39 @@ export default class ViewGL{
 
     updateDotSize = (dotSize) => {
         this.dotSize = dotSize;
+        this.dotResource.traceGeometry.dispose();
+        this.dotResource.traceGeometry = new THREE.CircleGeometry(this.dotSize, 32);
         this.updateDots();
     }
 
     updateDots = () => {
         if(this.dots != null) {
             for(let j in this.dots) {
-                this.dots[j].material.dispose();
-                this.dots[j].geometry.dispose();
                 this.scene.remove(this.dots[j]);
             }
         }
         this.dots = [];
         for (let j in this.dotProps) {
-            const dotGeometry = new THREE.CircleGeometry(this.dotSize, 32);
-            const dotMaterial = new THREE.MeshBasicMaterial({ color: 0xff9999 });
+            let prop = this.dotProps[j];
+            let dotMaterial;
+            let dotGeometry = this.dotResource.traceGeometry;
+            if (!prop.shoot) {
+                dotMaterial = this.dotResource.traceMaterial;
+            } else {
+                if (prop.hit) {
+                    dotMaterial = this.dotResource.hitTraceMaterial;
+                } else {
+                    dotMaterial = this.dotResource.missTraceMaterial;
+                };
+            }
             let dot = new THREE.Mesh(dotGeometry, dotMaterial);
             this.dots.push(dot);
             this.scene.add(dot);
-            let prop = this.dotProps[j];
             let pos = prop.pos;
             dot.position.set(pos.x, pos.y, pos.z + 2.0);
             if (prop.shoot) {
                 dot.position.set(pos.x, pos.y, pos.z + 3.0);
                 dot.scale.set(1.5, 1.5, 1.5);
-                if (prop.hit) {
-                    dot.material.color.set(0x00aa00);
-                } else {
-                    dot.material.color.set(0xff0000);
-                };
             }
         }
     }
