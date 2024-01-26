@@ -27,7 +27,9 @@ export default class ViewGL{
 
         this.createDotResource();
 
-        this.updateBdotSize(4.0);
+        this.bdotNum = 2;
+        this.bdotSize = 4.0
+        this.updateBdots();
 
         const crosshairGeometry = new THREE.CircleGeometry(0.1, 64);
         const crosshairMaterial = new THREE.MeshBasicMaterial({color: 0x00aa00});
@@ -71,6 +73,8 @@ export default class ViewGL{
         this.clock = new THREE.Clock();
         this.lastViewSpeed = 0.0;
 
+        this.lastHitObject = null;
+
         this.update();
     }
 
@@ -78,7 +82,7 @@ export default class ViewGL{
         const targetMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const targetGeometry = new THREE.CircleGeometry(3.0, 32);
         const traceMaterial = new THREE.MeshBasicMaterial({ color: 0xff9999 });
-        const traceGeometry = new THREE.CircleGeometry(this.dotSize, 32);
+        const traceGeometry = new THREE.SphereGeometry(this.dotSize, 32, 32);
         const hitTraceMaterial = new THREE.MeshBasicMaterial({ color: 0x00aa00 });
         const missTraceMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
         this.dotResource = {
@@ -103,15 +107,39 @@ export default class ViewGL{
         this.randHeight = value;
     }
 
-    updateBdotSize = (bsize) => {
-        if(this.bdot != null) {
-            this.scene.remove(this.bdot);
+    randBdots = () => {
+        for (let i = 0; i < this.bdotNum; ++i) {
+            let newX = Math.random() * this.randWidth - this.randWidth / 2;
+            let newY = Math.random() * this.randHeight - this.randHeight / 2;
+            this.bdots[i].position.set(newX, newY, this.wallZPos + 5.0);
         }
+    }
+
+    updateBdots = () => {
+        if(this.bdots != null) {
+            for(let i in this.bdots) {
+                this.scene.remove(this.bdots[i]);
+            }
+        }
+        this.bdots = []
+        for (let i = 0; i < this.bdotNum; ++i) {
+            const bdot = new THREE.Mesh(this.dotResource.targetGeometry, this.dotResource.targetMaterial);
+            this.bdots.push(bdot)
+            this.scene.add(bdot);
+        }
+        this.randBdots();
+    }
+
+    updateBdotSize = (bsize) => {
+        this.bdotSize = bsize;
         this.dotResource.targetGeometry.dispose();
-        this.dotResource.targetGeometry = new THREE.CircleGeometry(bsize, 32);
-        this.bdot = new THREE.Mesh(this.dotResource.targetGeometry, this.dotResource.targetMaterial);
-        this.bdot.position.set(0, 0, this.wallZPos + 1.0);
-        this.scene.add(this.bdot);
+        this.dotResource.targetGeometry = new THREE.SphereGeometry(bsize, 32, 32);
+        this.updateBdots();
+    }
+
+    updateBdotNum = (bnum) => {
+        this.bdotNum = bnum;
+        this.updateBdots();
     }
 
     updateDotNum = (dotNum) => {
@@ -194,7 +222,7 @@ export default class ViewGL{
             if (hit && this.randOnHit) {
                 let newX = Math.random() * this.randWidth - this.randWidth / 2;
                 let newY = Math.random() * this.randHeight - this.randHeight / 2;
-                this.bdot.position.set(newX, newY, this.wallZPos + 1.0);
+                this.lastHitObject.position.set(newX, newY, this.wallZPos + 5.0);
             }
         }
         if(!this.realtimeTrace) {
@@ -215,8 +243,8 @@ export default class ViewGL{
 
         this.camera.getWorldDirection(this.cameraDir);
         this.rayCaster.set(this.camera.position, this.cameraDir);
-        let intersectObjects = this.rayCaster.intersectObject(this.wall);
-        let pos = intersectObjects.length > 0 ? intersectObjects[0].point : null;
+        const intersectObjects = this.rayCaster.intersectObject(this.wall);
+        const pos = intersectObjects.length > 0 ? intersectObjects[0].point : null;
 
         this.cameraLastDirection.copy(this.cameraDirection);
         this.camera.getWorldDirection(this.cameraDirection);
@@ -224,22 +252,37 @@ export default class ViewGL{
         const delta = this.clock.getDelta();
         this.lastViewSpeed = angleChange / delta;
         if (pos) {
-            let intersectObjects = this.rayCaster.intersectObject(this.bdot);
-            let hit = intersectObjects.length > 0;
+            let hit = false;
+            for (let i = 0; i < this.bdotNum; ++i) {
+                const intersectObjects = this.rayCaster.intersectObject(this.bdots[i]);
+                if (intersectObjects.length > 0) {
+                    this.lastHitObject = this.bdots[i];
+                    hit = true
+                    break;
+                }
+            }
             let shoot = false;
 
-            this.dotProps.push({pos, shoot, hit, t, vs: this.lastViewSpeed});
+            this.dotProps.push({ pos, shoot, hit, t, vs: this.lastViewSpeed });
             while (this.dotProps.length > this.dotNum) {
                 this.dotProps.shift();
             }
-            if (this.realtimeTrace){
+            if (this.realtimeTrace) {
                 this.updateDots();
             }
         }
-        if (this.updateViewSpeed !== undefined && this.updateMaxViewSpeed !== undefined){
+        if (this.updateViewSpeed !== undefined && this.updateMaxViewSpeed !== undefined) {
             this.updateViewSpeed(this.lastViewSpeed);
-            const maxViewSpeed = Math.max(...this.dotProps.map(p => p.vs))
+            let maxViewSpeed = 0;
+            let avgViewSpeed = 0
+            for(let i = 0; i < this.dotProps.length; ++i) {
+                const vs = this.dotProps[i].vs;
+                if(vs > maxViewSpeed) { maxViewSpeed = vs; }
+                avgViewSpeed += vs;
+            }
+            if(this.dotProps.length > 0) { avgViewSpeed /= this.dotProps.length; }
             this.updateMaxViewSpeed(maxViewSpeed);
+            this.updateAvgViewSpeed(avgViewSpeed);
         }
 
         this.renderer.render(this.scene, this.camera);

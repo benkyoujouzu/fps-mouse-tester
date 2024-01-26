@@ -11,6 +11,7 @@ const defaultConfig = {
   dotNum: 120,
   dotSize: 2.0,
   targetSize: 4.0,
+  targetNum: 2,
   crosshairScale: 1.0,
   hfov: 106,
   realtimeTrace: 1,
@@ -33,6 +34,7 @@ function App() {
   const [viewSpeed, setViewSpeed] = createSignal(0);
   const [viewSpeedAtClick, setViewSpeedAtClick] = createSignal(0);
   const [maxViewSpeed, setMaxViewSpeed] = createSignal(0);
+  const [avgViewSpeed, setAvgViewSpeed] = createSignal(0);
 
   const [config, setConfig] = createSignal({});
 
@@ -64,6 +66,7 @@ function App() {
     viewGL.updateDotNum(parseInt(oldConfig['dotNum']));
     viewGL.updateDotSize(parseFloat(oldConfig['dotSize']));
     viewGL.updateBdotSize(parseFloat(oldConfig['targetSize']));
+    viewGL.updateBdotNum(parseFloat(oldConfig['targetNum']));
     viewGL.updateCrosshairScale(parseFloat(oldConfig['crosshairScale']));
     viewGL.updateHfov(parseFloat(oldConfig['hfov']));
     viewGL.updateRandWidth(parseFloat(oldConfig['randWidth']));
@@ -79,6 +82,7 @@ function App() {
     viewGL.updateViewSpeed = setViewSpeed;
     viewGL.updateViewSpeedAtClick = setViewSpeedAtClick;
     viewGL.updateMaxViewSpeed = setMaxViewSpeed;
+    viewGL.updateAvgViewSpeed = setAvgViewSpeed;
 
     const test = SpeedPlot(plotRef, viewGL);
     test.plot();
@@ -118,6 +122,17 @@ function App() {
     let value = parseFloat(evalue);
     if (!isNaN(value)) {
       viewGL.updateDotSize(value);
+      localStorage.setItem('fps-mouse-tester', JSON.stringify(newcfg))
+    }
+  }
+
+  const onBlackDotNumChange = (event) => {
+    let evalue = event.target.value;
+    let newcfg = { ...config(), targetNum: evalue };
+    setConfig(newcfg);
+    let value = parseInt(evalue);
+    if (!isNaN(value)) {
+      viewGL.updateBdotNum(value);
       localStorage.setItem('fps-mouse-tester', JSON.stringify(newcfg))
     }
   }
@@ -214,28 +229,31 @@ function App() {
   }
   const menu =
     <div>
-      <p>
-        Sens:<input size={3} value={config()['sens'] || ''} onChange={onSensChange} />
+        Sens:<input size={1} value={config()['sens'] || ''} onChange={onSensChange} />
         <span style={{ color: '#ff0000' }}>RedDotNum:</span><input size={3} value={config()['dotNum'] || ''} onChange={onRedDotNumChange} />
-        RedDotSize:<input size={3} value={config()['dotSize'] || ''} onChange={onRedDotSizeChange} />
-        BlackDotSize:<input size={3} value={config()['targetSize'] || ''} onChange={onBlackDotSizeChange} />
-        Crosshair:<input type='checkbox' checked={(config()['showCrosshair'] === 1) ? true : false} onChange={onShowCrosshairChange} />
-        CrosshairScale:<input size={3} value={config()['crosshairScale'] || ''} onChange={onCrosshairScaleChange} />
-        HFOV:<input size={3} value={config()['hfov'] || ''} onChange={onHfovChange} />
-        RandWidth:<input size={3} value={config()['randWidth'] || ''} onChange={onRandWidthChange} />
-        RandHeight:<input size={3} value={config()['randHeight'] || ''} onChange={onRandHeightChange} />
+        RedDotSize:<input size={1} value={config()['dotSize'] || ''} onChange={onRedDotSizeChange} />
+        BlackDotNum:<input size={1} value={config()['targetNum'] || ''} onChange={onBlackDotNumChange} />
+        BlackDotSize:<input size={1} value={config()['targetSize'] || ''} onChange={onBlackDotSizeChange} />
+        HFOV:<input size={1} value={config()['hfov'] || ''} onChange={onHfovChange} />
+        RandWidth:<input size={1} value={config()['randWidth'] || ''} onChange={onRandWidthChange} />
+        RandHeight:<input size={1} value={config()['randHeight'] || ''} onChange={onRandHeightChange} />
+        <br/>
         <span style={{ color: '#ff0000' }}>RealtimeTrace:</span>
         <input type='checkbox' checked={(config()['realtimeTrace'] === 1) ? true : false} onChange={onRealtimeTraceChange} />
         SpeedPlot:
         <input type='checkbox' checked={(config()['showSpeedPlot'] === 1) ? true : false} onChange={onShowSpeedPlotChange} />
         RandOnHit:<input type='checkbox' checked={(config()['randOnHit'] === 1) ? true : false} onChange={onRandOnHitChange} />
-      </p>
-      <p><button onClick={() => { viewGL.controls.lock(); containerRef.requestFullscreen(); }}>FullScreen</button></p>
+        <br/>
+        Crosshair:<input type='checkbox' checked={(config()['showCrosshair'] === 1) ? true : false} onChange={onShowCrosshairChange} />
+        CrosshairScale:<input size={1} value={config()['crosshairScale'] || ''} onChange={onCrosshairScaleChange} />
+        <br/>
+      <button onClick={() => { viewGL.controls.lock(); containerRef.requestFullscreen(); }}>FullScreen</button>
     </div>;
 
   const speedContent = () =>
     'ViewSpeed(deg/s):\n  ' + viewSpeed().toFixed(3)
     + '\nMax(deg/s):\n  ' + maxViewSpeed().toFixed(3)
+    + '\nAvg(deg/s):\n  ' + avgViewSpeed().toFixed(3)
     + '\nAtClick(deg/s):\n  ' + viewSpeedAtClick().toFixed(3);
   return (
     <div class={styles.App}>
