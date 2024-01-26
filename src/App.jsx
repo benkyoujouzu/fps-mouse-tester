@@ -2,52 +2,62 @@ import logo from './logo.svg';
 import styles from './App.module.css';
 import ViewGL from './ViewGL';
 import { Portal } from 'solid-js/web';
+import { SpeedPlot } from './SpeedPlot';
 
 import { createSignal, onCleanup, onMount } from 'solid-js';
 
 const defaultConfig = {
-        sens: 1.0,
-        dotNum: 60,
-        dotSize: 2.0,
-        targetSize: 4.0,
-        crosshairScale: 1.0,
-        hfov: 106,
-        realtimeTrace: 1,
-        showCrosshair: 1,
-        randOnHit: 1,
-        randWidth: 200,
-        randHeight: 100,
-      };
+  sens: 1.0,
+  dotNum: 120,
+  dotSize: 2.0,
+  targetSize: 4.0,
+  crosshairScale: 1.0,
+  hfov: 106,
+  realtimeTrace: 1,
+  showCrosshair: 1,
+  showSpeedPlot: 1,
+  randOnHit: 1,
+  randWidth: 200,
+  randHeight: 100,
+  release: "20240126",
+};
 
 function App() {
   let viewGL;
   let canvasRef;
   let handleResize;
   let handleMouseDown;
+  let plotRef;
+  let containerRef;
 
   const [viewSpeed, setViewSpeed] = createSignal(0);
   const [viewSpeedAtClick, setViewSpeedAtClick] = createSignal(0);
+  const [maxViewSpeed, setMaxViewSpeed] = createSignal(0);
 
   const [config, setConfig] = createSignal({});
 
   onMount(() => {
     viewGL = new ViewGL(canvasRef);
     handleResize = () => {
-      viewGL.onWindowResize(window.innerWidth);
+      const height = window.innerHeight;
+      viewGL.onWindowResize(height);
+      containerRef.style.height = `${height}px`;
+      containerRef.style.width = `${height * 16 / 9}px`;
       // viewGL.onWindowResize(800);
     };
+    handleResize();
     handleMouseDown = () => {
       viewGL.controls.lock();
       viewGL.handleMouseDown();
     };
     canvasRef.addEventListener('pointerdown', handleMouseDown);
     window.addEventListener('resize', handleResize);
-    
-        let oldConfig = JSON.parse(localStorage.getItem('fps-mouse-tester'));
-    if(!oldConfig) {
+
+    let oldConfig = JSON.parse(localStorage.getItem('fps-mouse-tester'));
+    if (!oldConfig || oldConfig.release !== defaultConfig.release) {
       oldConfig = defaultConfig;
     } else {
-      oldConfig = {...defaultConfig, ...oldConfig};
+      oldConfig = { ...defaultConfig, ...oldConfig };
     }
     setConfig(oldConfig);
     viewGL.updateSens(parseFloat(oldConfig['sens']));
@@ -58,23 +68,28 @@ function App() {
     viewGL.updateHfov(parseFloat(oldConfig['hfov']));
     viewGL.updateRandWidth(parseFloat(oldConfig['randWidth']));
     viewGL.updateRandHeight(parseFloat(oldConfig['randHeight']));
-    let realtimeTrace = oldConfig['realtimeTrace'] ? true : false;
+    const realtimeTrace = oldConfig['realtimeTrace'] ? true : false;
     viewGL.updateRealtimeTrace(realtimeTrace);
-    let randOnHit = oldConfig['randOnHit'] ? true : false;
+    const randOnHit = oldConfig['randOnHit'] ? true : false;
     viewGL.updateRandOnHit(randOnHit);
-    let showCrosshair = oldConfig['showCrosshair'] ? true : false;
+    const showCrosshair = oldConfig['showCrosshair'] ? true : false;
     viewGL.updateShowCrosshair(showCrosshair);
-
+    const oldShowSpeedPlot = oldConfig['showSpeedPlot'] ? true : false;
+    changeShowSpeedPlot(oldShowSpeedPlot);
     viewGL.updateViewSpeed = setViewSpeed;
     viewGL.updateViewSpeedAtClick = setViewSpeedAtClick;
+    viewGL.updateMaxViewSpeed = setMaxViewSpeed;
+
+    const test = SpeedPlot(plotRef, viewGL);
+    test.plot();
   });
 
   onCleanup(() => {
-      canvasRef.removeEventListener('pointerdown', handleMouseDown);
-      window.removeEventListener('resize', handleResize);
+    canvasRef.removeEventListener('pointerdown', handleMouseDown);
+    window.removeEventListener('resize', handleResize);
   });
 
-    const onSensChange = (event) => {
+  const onSensChange = (event) => {
     let evalue = event.target.value;
     let newcfg = { ...config(), sens: evalue };
     setConfig(newcfg);
@@ -137,6 +152,18 @@ function App() {
     localStorage.setItem('fps-mouse-tester', JSON.stringify(newcfg));
   }
 
+  const changeShowSpeedPlot = (value) => {
+    plotRef.style.visibility = value ? 'visible' : 'hidden';
+  }
+
+  const onShowSpeedPlotChange = (event) => {
+    let value = event.target.checked;
+    let newcfg = { ...config(), showSpeedPlot: (value ? 1 : 0) };
+    setConfig(newcfg);
+    changeShowSpeedPlot(value);
+    localStorage.setItem('fps-mouse-tester', JSON.stringify(newcfg));
+  }
+
   const onRandOnHitChange = (event) => {
     let value = event.target.checked;
     let newcfg = { ...config(), randOnHit: (value ? 1 : 0) };
@@ -185,11 +212,11 @@ function App() {
       localStorage.setItem('fps-mouse-tester', JSON.stringify(newcfg))
     }
   }
-    const menu =
+  const menu =
     <div>
       <p>
         Sens:<input size={3} value={config()['sens'] || ''} onChange={onSensChange} />
-        RedDotNum:<input size={3} value={config()['dotNum'] || ''} onChange={onRedDotNumChange} />
+        <span style={{ color: '#ff0000' }}>RedDotNum:</span><input size={3} value={config()['dotNum'] || ''} onChange={onRedDotNumChange} />
         RedDotSize:<input size={3} value={config()['dotSize'] || ''} onChange={onRedDotSizeChange} />
         BlackDotSize:<input size={3} value={config()['targetSize'] || ''} onChange={onBlackDotSizeChange} />
         Crosshair:<input type='checkbox' checked={(config()['showCrosshair'] === 1) ? true : false} onChange={onShowCrosshairChange} />
@@ -197,64 +224,31 @@ function App() {
         HFOV:<input size={3} value={config()['hfov'] || ''} onChange={onHfovChange} />
         RandWidth:<input size={3} value={config()['randWidth'] || ''} onChange={onRandWidthChange} />
         RandHeight:<input size={3} value={config()['randHeight'] || ''} onChange={onRandHeightChange} />
-        <span style={{color: '#ff0000'}}>RealtimeTrace:</span><input type='checkbox' checked={(config()['realtimeTrace'] === 1) ? true : false} onChange={onRealtimeTraceChange} />
+        <span style={{ color: '#ff0000' }}>RealtimeTrace:</span>
+        <input type='checkbox' checked={(config()['realtimeTrace'] === 1) ? true : false} onChange={onRealtimeTraceChange} />
+        SpeedPlot:
+        <input type='checkbox' checked={(config()['showSpeedPlot'] === 1) ? true : false} onChange={onShowSpeedPlotChange} />
         RandOnHit:<input type='checkbox' checked={(config()['randOnHit'] === 1) ? true : false} onChange={onRandOnHitChange} />
       </p>
-      <p><button onClick={() => { viewGL.controls.lock(); canvasRef.requestFullscreen(); }}>FullScreen</button></p>
+      <p><button onClick={() => { viewGL.controls.lock(); containerRef.requestFullscreen(); }}>FullScreen</button></p>
     </div>;
 
-    const speedContent = () => 'ViewSpeed(deg/s):\n  ' + viewSpeed().toFixed(3) + '\nAtClick(deg/s):\n  ' + viewSpeedAtClick().toFixed(3)
+  const speedContent = () =>
+    'ViewSpeed(deg/s):\n  ' + viewSpeed().toFixed(3)
+    + '\nMax(deg/s):\n  ' + maxViewSpeed().toFixed(3)
+    + '\nAtClick(deg/s):\n  ' + viewSpeedAtClick().toFixed(3);
   return (
-    <div>
-      <div>
-      <canvas ref={canvasRef} />
-        <div class={styles.info}>{speedContent()}</div>
+    <div class={styles.App}>
+      <div id={styles.canvasContainer} ref={containerRef}>
+        <canvas id={styles.canvas3d} ref={canvasRef} />
+        <div id={styles.info}>{speedContent()}</div>
+        <canvas id={styles.canvas2d} width="600" height="100" ref={plotRef} />
       </div>
       {menu}
+      <a href="https://github.com/benkyoujouzu/fps-mouse-tester" target="_blank">github.com/benkyoujouzu/fps-mouse-tester</a>
     </div>
   );
 
-//   onMount(() => {
-
-//     const scene = new THREE.Scene();
-//     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-//     const renderer = new THREE.WebGLRenderer({canvas: canvasRef});
-//     renderer.setSize(window.innerWidth, window.innerHeight);
-//     // document.body.appendChild( renderer.domElement );
-
-//     const geometry = new THREE.BoxGeometry(1, 1, 1);
-//     const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-//     const cube = new THREE.Mesh(geometry, material);
-//     scene.add(cube);
-
-//     camera.position.z = 5;
-
-//     function animate() {
-//       requestAnimationFrame(animate);
-//       renderer.render(scene, camera);
-//     }
-// animate();
-//   });
-  return (
-      <canvas ref={canvasRef}/>
-    // <div class={styles.App}>
-    //   <header class={styles.header}>
-    //     <img src={logo} class={styles.logo} alt="logo" />
-    //     <p>
-    //       Edit <code>src/App.jsx</code> and save to reload.
-    //     </p>
-    //     <a
-    //       class={styles.link}
-    //       href="https://github.com/solidjs/solid"
-    //       target="_blank"
-    //       rel="noopener noreferrer"
-    //     >
-    //       Learn Solid
-    //     </a>
-    //   </header>
-    // </div>
-  );
 }
 
 export default App;

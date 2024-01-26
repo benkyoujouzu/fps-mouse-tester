@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import {PointerLockControls} from 'three/addons/controls/PointerLockControls.js'
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
-
 export default class ViewGL{
     constructor(canvasRef) {
         this.scene = new THREE.Scene();
@@ -10,14 +9,11 @@ export default class ViewGL{
             canvas: canvasRef,
             antialias: false,
         });
-        // this.renderer.setPixelRatio(0.5);
 
         this.wallZPos = -800;
 
-        // Create meshes, materials, etc.
         this.camera = new THREE.PerspectiveCamera( 73.74, 16/9, 0.1, 2000 );
         this.cameraDir = new THREE.Vector3();
-
 
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(0, 100, 800);
@@ -59,8 +55,8 @@ export default class ViewGL{
 
         this.rayCaster = new THREE.Raycaster();
 
-        let width = window.innerWidth;
-        this.renderer.setSize(width, width * 9 / 16);
+        let height = window.innerHeight;
+        this.renderer.setSize(height * 16 / 9, height);
 
         this.realtimeTrace = false;
 
@@ -209,8 +205,8 @@ export default class ViewGL{
     
     // ******************* PUBLIC EVENTS ******************* //
 
-    onWindowResize = (width) => {
-        this.renderer.setSize(width, width * 9 / 16);
+    onWindowResize = (height) => {
+        this.renderer.setSize(height * 16 / 9, height);
     }
 
     // ******************* RENDER LOOP ******************* //
@@ -221,12 +217,18 @@ export default class ViewGL{
         this.rayCaster.set(this.camera.position, this.cameraDir);
         let intersectObjects = this.rayCaster.intersectObject(this.wall);
         let pos = intersectObjects.length > 0 ? intersectObjects[0].point : null;
+
+        this.cameraLastDirection.copy(this.cameraDirection);
+        this.camera.getWorldDirection(this.cameraDirection);
+        const angleChange = this.cameraDirection.angleTo(this.cameraLastDirection) * 180 / Math.PI;
+        const delta = this.clock.getDelta();
+        this.lastViewSpeed = angleChange / delta;
         if (pos) {
             let intersectObjects = this.rayCaster.intersectObject(this.bdot);
             let hit = intersectObjects.length > 0;
             let shoot = false;
 
-            this.dotProps.push({pos, shoot, hit});
+            this.dotProps.push({pos, shoot, hit, t, vs: this.lastViewSpeed});
             while (this.dotProps.length > this.dotNum) {
                 this.dotProps.shift();
             }
@@ -234,16 +236,11 @@ export default class ViewGL{
                 this.updateDots();
             }
         }
-
-        this.cameraLastDirection.copy(this.cameraDirection);
-        this.camera.getWorldDirection(this.cameraDirection);
-        const angleChange = this.cameraDirection.angleTo(this.cameraLastDirection) * 180 / Math.PI;
-        const delta = this.clock.getDelta();
-        this.lastViewSpeed = angleChange / delta;
-        if (this.updateViewSpeed !== undefined){
+        if (this.updateViewSpeed !== undefined && this.updateMaxViewSpeed !== undefined){
             this.updateViewSpeed(this.lastViewSpeed);
+            const maxViewSpeed = Math.max(...this.dotProps.map(p => p.vs))
+            this.updateMaxViewSpeed(maxViewSpeed);
         }
-        
 
         this.renderer.render(this.scene, this.camera);
 
